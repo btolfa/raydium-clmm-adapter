@@ -4,9 +4,20 @@ name = "raydium-clmm-adapter"
 version = "0.1.0"
 
 [dependencies]
-raydium-amm-v3 = { git = "https://github.com/raydium-io/raydium-clmm.git", features = [
+anchor-client = "0.29.0"
+anyhow = "1"
+arrayref = "0.3.7"
+raydium-amm-v3 = { git = "https://github.com/btolfa/raydium-clmm.git", branch = "raydium-client", features = [
   "no-entrypoint",
   "client",
 ] }
+raydium-client = { package = "client", git = "https://github.com/btolfa/raydium-clmm.git", branch = "raydium-client" }
+solana-client = ">=1.14, <1.17"
 solana-sdk = ">=1.14, <1.17"
+spl-memo = "4.0.0"
 spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
+spl-token-2022 = { version = "0.9.0", features = ["no-entrypoint"] }
+
+
+[dev-dependencies]
+tokio = { version = "1.35.1", features = ["full"] }
