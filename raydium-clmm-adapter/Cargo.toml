@@ -1,8 +1,12 @@
 [package]
+edition = "2021"
 name = "raydium-clmm-adapter"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+raydium-amm-v3 = { git = "https://github.com/raydium-io/raydium-clmm.git", features = [
+  "no-entrypoint",
+  "client",
+] }
+solana-sdk = ">=1.14, <1.17"
+spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
