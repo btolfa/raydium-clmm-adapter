@@ -76,10 +76,10 @@ impl Pair {
         )?;
 
         let tick_arrays_zero_for_one = pool_keys
-            .load_cur_and_next_five_tick_array(rpc_client, &pool_state, &tickarray_bitmap_extension, true)
+            .load_current_and_next_tick_arrays(rpc_client, &pool_state, &tickarray_bitmap_extension, true)
             .await?;
         let tick_arrays_one_for_zero = pool_keys
-            .load_cur_and_next_five_tick_array(rpc_client, &pool_state, &tickarray_bitmap_extension, false)
+            .load_current_and_next_tick_arrays(rpc_client, &pool_state, &tickarray_bitmap_extension, false)
             .await?;
 
         Ok(Self {
@@ -369,6 +369,79 @@ fn swap_v2_instruction(
         })
         .instructions()?;
     Ok(instructions)
+}
+
+impl PoolKeys {
+    fn find_initialized_tick_arrays(
+        &self,
+        pool_state: &PoolState,
+        tickarray_bitmap_extension: &TickArrayBitmapExtension,
+        zero_for_one: bool,
+    ) -> anyhow::Result<Vec<i32>> {
+        let mut tick_array_indexes = Vec::new();
+        let (_, mut current_tick_array_start_index) =
+            pool_state.get_first_initialized_tick_array(&Some(*tickarray_bitmap_extension), zero_for_one)?;
+        tick_array_indexes.push(current_tick_array_start_index);
+
+        while let Some(next_tick_array_index) = pool_state.next_initialized_tick_array_start_index(
+            &Some(*tickarray_bitmap_extension),
+            current_tick_array_start_index,
+            zero_for_one,
+        )? {
+            tick_array_indexes.push(next_tick_array_index);
+            current_tick_array_start_index = next_tick_array_index;
+        }
+
+        Ok(tick_array_indexes)
+    }
+
+    fn derive_tick_array_keys(&self, tick_array_indexes: &[i32]) -> Vec<Pubkey> {
+        tick_array_indexes
+            .iter()
+            .map(|start_index| {
+                Pubkey::find_program_address(
+                    &[
+                        raydium_amm_v3::states::TICK_ARRAY_SEED.as_bytes(),
+                        self.pool_id_account.to_bytes().as_ref(),
+                        &start_index.to_be_bytes(),
+                    ],
+                    &self.raydium_v3_program,
+                )
+                .0
+            })
+            .collect()
+    }
+
+    pub async fn load_current_and_next_tick_arrays(
+        &self,
+        rpc_client: &RpcClient,
+        pool_state: &PoolState,
+        tickarray_bitmap_extension: &TickArrayBitmapExtension,
+        zero_for_one: bool,
+    ) -> anyhow::Result<VecDeque<TickArrayState>> {
+        let tick_array_indexes =
+            self.find_initialized_tick_arrays(pool_state, tickarray_bitmap_extension, zero_for_one)?;
+        let tick_array_keys = self.derive_tick_array_keys(&tick_array_indexes);
+
+        let mut result = VecDeque::new();
+        for chunk in tick_array_keys.chunks(100) {
+            let resp: Vec<TickArrayState> = rpc_client
+                .get_multiple_accounts(chunk)
+                .await?
+                .iter()
+                .map(|tick_array| {
+                    deserialize_anchor_account::<raydium_amm_v3::states::TickArrayState>(
+                        tick_array
+                            .as_ref()
+                            .ok_or_else(|| anyhow!("can't fetch state: tick_array"))?,
+                    )
+                })
+                .collect::<Result<_, anyhow::Error>>()?;
+            result.extend(resp.into_iter());
+        }
+
+        Ok(result)
+    }
 }
 
 #[cfg(test)]
