@@ -749,7 +749,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4114279215a005bc675e386011e594e1d9b800918cea18fcadadcce864a2046b"
 dependencies = [
  "borsh-derive 0.10.3",
- "hashbrown 0.12.3",
+ "hashbrown 0.13.2",
 ]
 
 [[package]]
@@ -1496,6 +1496,12 @@ dependencies = [
  "quote 0.6.13",
  "syn 0.15.44",
 ]
+
+[[package]]
+name = "dotenvy"
+version = "0.15.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "eager"
@@ -3229,9 +3235,11 @@ dependencies = [
  "anyhow",
  "arrayref",
  "client",
+ "dotenvy",
  "raydium-amm-v3",
  "solana-client",
  "solana-sdk",
+ "spl-associated-token-account",
  "spl-memo 4.0.0",
  "spl-token 4.0.0",
  "spl-token-2022 0.9.0",

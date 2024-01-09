@@ -385,8 +385,12 @@ fn swap_v2_instruction(
 
 #[cfg(test)]
 mod tests {
-    use crate::Pair;
-    use solana_sdk::{pubkey, pubkey::Pubkey};
+    use crate::{Pair, SwapV2};
+    use dotenvy::dotenv;
+    use solana_client::nonblocking::rpc_client::RpcClient;
+    use solana_sdk::{
+        compute_budget::ComputeBudgetInstruction, message::Message, pubkey, pubkey::Pubkey, transaction::Transaction,
+    };
 
     const RAYDIUM_V3_PROGRAM_MAINNET: Pubkey = pubkey!("CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK");
     #[test]
@@ -408,5 +412,48 @@ mod tests {
         };
 
         assert_eq!(pair, expected);
+    }
+
+    #[tokio::test]
+    async fn should_simulate_sol_usdc_swap() -> anyhow::Result<()> {
+        dotenv().ok();
+        let solana_rpc_url = std::env::var("SOLANA_RPC_URL")?;
+        let rpc_client = RpcClient::new(solana_rpc_url);
+
+        let wsol = spl_token::native_mint::id();
+        let usdc = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+        let amm_config_index = 2;
+        let pair = Pair::new(RAYDIUM_V3_PROGRAM_MAINNET, wsol, usdc, amm_config_index);
+
+        let payer = pubkey!("DFZgpRgoJP8c2Phx9rP79yn9rUQkWAU1ksnAH6dY7c8U");
+        let input_token =
+            spl_associated_token_account::get_associated_token_address_with_program_id(&payer, &wsol, &spl_token::id());
+        let output_token =
+            spl_associated_token_account::get_associated_token_address_with_program_id(&payer, &usdc, &spl_token::id());
+        let amount = 100_000_000;
+
+        let params = SwapV2 {
+            payer,
+            input_token,
+            output_token,
+            base_in: true,
+            amount,
+            limit_price: None,
+            slippage: 0.01,
+        };
+
+        let mut instructions = vec![ComputeBudgetInstruction::set_compute_unit_limit(1400_000u32)];
+        instructions.extend(pair.build_swap_instruction(params, &rpc_client).await?);
+        let recent_blockhash = rpc_client.get_latest_blockhash().await?;
+        let txn = Transaction::new_unsigned(Message::new_with_blockhash(
+            &instructions,
+            Some(&payer),
+            &recent_blockhash,
+        ));
+
+        let response = rpc_client.simulate_transaction(&txn).await?.value;
+        println!("{:?}", response);
+
+        Ok(())
     }
 }
